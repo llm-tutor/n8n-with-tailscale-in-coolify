@@ -1,0 +1,154 @@
+version: '3.8'
+
+services:
+  # Tailscale service with subnet routing
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: n8n-hetzner
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_ROUTES=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12
+      - TS_EXTRA_ARGS=--advertise-routes=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12 --accept-routes
+    volumes:
+      - /root/data/n8n/tailscale:/var/lib/tailscale
+    cap_add:
+      - net_admin
+      - sys_module
+    networks:
+      - n8n_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "tailscale", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=n8n
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - /root/data/n8n/postgres:/var/lib/postgresql/data
+    networks:
+      - n8n_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - /root/data/n8n/redis:/data
+    networks:
+      - n8n_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  n8n:
+    image: n8nio/n8n:latest
+    user: "1000:1000"
+    environment:
+      # Timezone (Change to appropriate TZ Id)
+      - TZ=Etc/GMT+6
+      - GENERIC_TIMEZONE=Etc/GMT+6
+      # Authentication & User Management
+      - N8N_USER_MANAGEMENT_ENABLED=true
+      - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_JWT_SECRET}
+      # Database
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      # Queue mode for scaling
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      # Security
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES=true
+      - N8N_RESTRICT_FILE_ACCESS_TO=/files:/backups
+      # External access
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_HOST=0.0.0.0
+      - N8N_PROTOCOL=https
+      - N8N_PROXY_HOPS=1
+      # Performance
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - N8N_METRICS=true
+      # Custom nodes
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+      - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
+      # Disable telemetry
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_PERSONALIZATION_ENABLED=false
+      - N8N_HIRING_BANNER_ENABLED=false
+      # Network routing through Tailscale
+      - N8N_BINARY_DATA_TTL=1440
+    ports:
+      - "5678:5678"
+    volumes:
+      - /root/data/n8n/.n8n:/home/node/.n8n
+      - /root/data/n8n/custom-nodes:/home/node/.n8n/custom
+      - /root/data/n8n/shared-files:/files
+      - /root/data/n8n/backups:/backups
+    networks:
+      - n8n_network
+    depends_on:
+      tailscale:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  n8n-worker:
+    image: n8nio/n8n:latest
+    user: "1000:1000"
+    command: worker
+    environment:
+      # Timezone (Change to appropriate TZ Id)
+      - TZ=Etc/GMT+6
+      - GENERIC_TIMEZONE=Etc/GMT+6
+      # Database
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - EXECUTIONS_MODE=queue
+      - QUEUE_BULL_REDIS_HOST=redis
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+    volumes:
+      - /root/data/n8n/.n8n:/home/node/.n8n
+      - /root/data/n8n/shared-files:/files
+    networks:
+      - n8n_network
+    depends_on:
+      tailscale:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  n8n_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
