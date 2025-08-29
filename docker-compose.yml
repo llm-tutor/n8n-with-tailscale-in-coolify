@@ -8,8 +8,7 @@ services:
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY}
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_ROUTES=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12
-      - TS_EXTRA_ARGS=--advertise-routes=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12 --accept-routes
+      - TS_EXTRA_ARGS=--advertise-routes=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12 --accept-routes=true
     volumes:
       - /root/data/n8n/tailscale:/var/lib/tailscale
     cap_add:
