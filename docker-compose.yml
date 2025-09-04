@@ -43,13 +43,14 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     volumes:
       - /root/data/n8n/redis:/data
     networks:
       - n8n_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -58,9 +59,9 @@ services:
     image: n8nio/n8n:latest
     user: "1000:1000"
     environment:
-      # Timezone (Change to appropriate TZ Id)
-      - TZ=Etc/GMT+6
-      - GENERIC_TIMEZONE=Etc/GMT+6
+      # Timezone (configurable via TZ environment variable)
+      - TZ=${TZ:-Etc/GMT+6}
+      - GENERIC_TIMEZONE=${TZ:-Etc/GMT+6}
       # Authentication & User Management
       - N8N_USER_MANAGEMENT_ENABLED=true
       - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_JWT_SECRET}
@@ -73,6 +74,7 @@ services:
       # Queue mode for scaling
       - EXECUTIONS_MODE=queue
       - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
       # Security
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
       - N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES=true
@@ -84,8 +86,8 @@ services:
       - N8N_PROXY_HOPS=1
       # Performance
       - EXECUTIONS_DATA_PRUNE=true
-      - EXECUTIONS_DATA_MAX_AGE=168
-      - N8N_METRICS=true
+      - EXECUTIONS_DATA_MAX_AGE=${EXECUTIONS_DATA_MAX_AGE:-168}
+      - N8N_METRICS=${N8N_METRICS:-true}
       # Custom nodes
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
       - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
@@ -120,9 +122,9 @@ services:
     user: "1000:1000"
     command: worker
     environment:
-      # Timezone (Change to appropriate TZ Id)
-      - TZ=Etc/GMT+6
-      - GENERIC_TIMEZONE=Etc/GMT+6
+      # Timezone (configurable via TZ environment variable)
+      - TZ=${TZ:-Etc/GMT+6}
+      - GENERIC_TIMEZONE=${TZ:-Etc/GMT+6}
       # Database
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
@@ -131,6 +133,7 @@ services:
       - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
       - EXECUTIONS_MODE=queue
       - QUEUE_BULL_REDIS_HOST=redis
+      - QUEUE_BULL_REDIS_PASSWORD=${REDIS_PASSWORD}
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
       - N8N_RUNNERS_ENABLED=true

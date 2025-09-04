@@ -45,28 +45,55 @@ The setup is designed for **Coolify deployment** and optimized for **low-cost in
 - Tailscale account with generated auth key
 - Domain configured for external access
 
+### Environment Setup
+
+1. **For Coolify Deployment:**
+   - Use the Coolify dashboard to set environment variables
+   - All required and optional variables are listed below
+   - Copy values from the `.env.template` file for reference
+
+2. **For Manual Docker Compose Deployment:**
+   ```bash
+   cp .env.template .env
+   # Edit .env with your actual values
+   docker-compose up -d
+   ```
+
+3. **Generate secrets (run individually to avoid bash history):**
+   ```bash
+   openssl rand -base64 32  # For POSTGRES_PASSWORD
+   openssl rand -base64 32  # For REDIS_PASSWORD
+   openssl rand -base64 32  # For N8N_ENCRYPTION_KEY
+   openssl rand -base64 64  # For N8N_JWT_SECRET
+   ```
+
 ### Environment Variables
 
-Create the following environment variables before deployment:
+Set the following environment variables in **Coolify's Environment tab** or in your `.env` file for manual deployments:
+
+**Required Secrets:**
 
 ```bash
 # Required Secrets
 TS_AUTHKEY=<tailscale-reusable-auth-key>
 POSTGRES_PASSWORD=<strong-database-password>
+REDIS_PASSWORD=<strong-redis-password>
 N8N_ENCRYPTION_KEY=<32-character-base64-key>
 N8N_JWT_SECRET=<64-character-base64-key>
 WEBHOOK_URL=https://n8n.yourdomain.com
+
+# Optional Configuration
+TZ=<timezone-identifier>  # e.g., America/New_York, Europe/London, UTC (default: Etc/GMT+6)
 ```
 
-### Generate Secrets
+**Coolify Setup:**
+1. Navigate to your application's **Environment** tab in Coolify
+2. Add each variable above with your generated values
+3. Use the secret generation commands above to create secure passwords
+4. Deploy your application
 
-```bash
-echo "POSTGRES_PASSWORD=$(openssl rand -base64 32)"
-echo "N8N_ENCRYPTION_KEY=$(openssl rand -base64 32)"  
-echo "N8N_JWT_SECRET=$(openssl rand -base64 64)"
-```
-
-**Note**: It is preferable to just run `openssl rand -base64 32` or `openssl rand -base64 64` instead of the full echo command, to avoid leaving what are clearly secret keys in your bash history.
+**Manual Deployment:**
+Copy `.env.template` to `.env` and fill in your values, then run `docker-compose up -d`.
 
 ### Directory Setup
 
@@ -79,10 +106,31 @@ chown -R 1000:1000 /root/data/n8n
 
 ### Deploy
 
-In Coolify, use the dashboard to deploy a Git based application, then select the docker compose template to deploy. If not using Coolify just deploy using:
+**In Coolify:**
+1. Create a new application from Git repository
+2. Select the **Docker Compose** deployment type
+3. Set all required environment variables in the **Environment** tab
+4. Deploy the application
 
+**Manual Deployment:**
 ```bash
 docker-compose up -d
+```
+
+#### Example: Custom Timezone Deployment
+
+**In Coolify:**
+- Set `TZ=America/New_York` in the Environment tab
+- All services will automatically use the specified timezone
+
+**Manual Deployment:**
+```bash
+# Set timezone environment variable
+export TZ=America/New_York
+docker-compose up -d
+
+# Or for one-time deployment:
+TZ=Europe/London docker-compose up -d
 ```
 
 ## Tailscale Configuration
@@ -267,14 +315,45 @@ Compatible with **2GB+ RAM** instances.
 ### Required
 - `TS_AUTHKEY` - Tailscale authentication key
 - `POSTGRES_PASSWORD` - Database password
+- `REDIS_PASSWORD` - Redis password
 - `N8N_ENCRYPTION_KEY` - Workflow encryption (32 chars)
 - `N8N_JWT_SECRET` - Authentication secret (64 chars)
 - `WEBHOOK_URL` - External N8N URL for webhooks
 
 ### Optional Customization
-- `TZ` - Timezone (default: Fixed CST/UTC-6 - Set as 'Etc/GMT+6')
+- `TZ` - Timezone identifier (default: Etc/GMT+6). Examples: America/New_York, Europe/London, UTC, Asia/Tokyo
 - `EXECUTIONS_DATA_MAX_AGE` - Execution retention hours (default: 168)
 - `N8N_METRICS` - Enable metrics (default: true)
+
+### Timezone Configuration
+
+The `TZ` environment variable accepts standard timezone identifiers. Common examples:
+
+**Americas**:
+- `America/New_York` - Eastern Time (EST/EDT)
+- `America/Chicago` - Central Time (CST/CDT)
+- `America/Denver` - Mountain Time (MST/MDT)
+- `America/Los_Angeles` - Pacific Time (PST/PDT)
+- `America/Toronto` - Eastern Time (Canada)
+
+**Europe**:
+- `Europe/London` - Greenwich Mean Time (GMT/BST)
+- `Europe/Paris` - Central European Time (CET/CEST)
+- `Europe/Berlin` - Central European Time (CET/CEST)
+- `Europe/Moscow` - Moscow Time (MSK)
+
+**Asia**:
+- `Asia/Tokyo` - Japan Standard Time (JST)
+- `Asia/Shanghai` - China Standard Time (CST)
+- `Asia/Kolkata` - India Standard Time (IST)
+- `Asia/Dubai` - Gulf Standard Time (GST)
+
+**UTC Variations**:
+- `UTC` - Coordinated Universal Time
+- `Etc/GMT+6` - UTC-6 (Central Standard Time equivalent)
+- `Etc/GMT-5` - UTC+5 (Pakistan Standard Time equivalent)
+
+**Note**: Use `timedatectl list-timezones` on Linux systems to see all available timezone identifiers.
 
 ## Health Checks
 
@@ -345,6 +424,13 @@ tar -czf backup-$(date +%Y%m%d).tar.gz /root/data/n8n/
 - [Tailscale Documentation](https://tailscale.com/kb/)
 - [Docker Compose Reference](https://docs.docker.com/compose/)
 - [Coolify Docs](https://coolify.io/docs/get-started/introduction)
+
+## Project Files
+
+- `docker-compose.yml` - Main Docker Compose configuration
+- `.env.template` - Environment variables template (copy to `.env` and customize)
+- `README.md` - This documentation
+- `.gitignore` - Ensures secrets in `.env` are not committed
 
 ---
 
