@@ -111,6 +111,7 @@ chown -R 1000:1000 /root/data/n8n
 2. Select the **Docker Compose** deployment type
 3. Set all required environment variables in the **Environment** tab
 4. Deploy the application
+5. Visit your N8N URL and create the **owner** account
 
 **Manual Deployment:**
 ```bash
