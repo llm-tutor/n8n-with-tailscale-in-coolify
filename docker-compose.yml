@@ -89,6 +89,7 @@ services:
       - EXECUTIONS_DATA_MAX_AGE=${EXECUTIONS_DATA_MAX_AGE:-168}
       - N8N_METRICS=${N8N_METRICS:-true}
       # Custom nodes
+      - NODE_FUNCTION_ALLOW_BUILTIN=*
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
       - N8N_CUSTOM_EXTENSIONS=/home/node/.n8n/custom
       # Disable telemetry
