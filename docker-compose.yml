@@ -4,6 +4,7 @@ services:
   # Tailscale service with subnet routing
   tailscale:
     image: tailscale/tailscale:latest
+    pull_policy: always
     hostname: n8n-hetzner
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY}
@@ -56,7 +57,7 @@ services:
       retries: 5
 
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:1.121.2
     user: "1000:1000"
     environment:
       # Timezone (configurable via TZ environment variable)
