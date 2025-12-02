@@ -121,7 +121,7 @@ services:
     restart: unless-stopped
 
   n8n-worker:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:1.121.2
     user: "1000:1000"
     command: worker
     environment:
