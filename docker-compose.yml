@@ -57,7 +57,7 @@ services:
       retries: 5
 
   n8n:
-    image: n8nio/n8n:1.123.31
+    image: n8nio/n8n:2.18.5
     user: "1000:1000"
     environment:
       # Timezone (configurable via TZ environment variable)
@@ -124,7 +124,7 @@ services:
     restart: unless-stopped
 
   n8n-worker:
-    image: n8nio/n8n:1.123.31
+    image: n8nio/n8n:2.18.5
     user: "1000:1000"
     command: worker
     environment:
@@ -162,7 +162,7 @@ services:
     restart: unless-stopped
 
   n8n-runner:
-    image: n8nio/runners:1.123.31
+    image: n8nio/runners:2.18.5
     restart: unless-stopped
     environment:
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
