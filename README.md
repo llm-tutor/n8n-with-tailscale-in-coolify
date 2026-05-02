@@ -1,6 +1,6 @@
-# N8N + Tailscale Docker Compose
+# N8N v2 + Tailscale Docker Compose
 
-Production-ready N8N deployment with Tailscale integration for secure local network access. Designed for [Coolify](https://coolify.io/) deployment.
+Production-ready N8N deployment (Version 2.x compatible) with Tailscale integration for secure local network access. Designed for [Coolify](https://coolify.io/) deployment.
 
 ## Purpose
 
@@ -11,20 +11,22 @@ This configuration enables an online N8N instance to trigger processes not only 
 - **Hybrid automation workflows** - combine cloud services with local processing capabilities
 - **Cost optimization** - avoid expensive online processing services by using local resources
 
-The setup is designed for **Coolify deployment** and optimized for **low-cost instances** (compatible with providers like Hetzner's cheapest tiers), making powerful automation accessible without significant infrastructure investment.
+The setup is designed for **Coolify deployment** and optimized for **low-cost instances** (compatible with providers like Hetzner's cheapest tiers), making powerful automation accessible without significant infrastructure investment. 
 
 ## Features
 
-- **N8N Workflow Automation** with PostgreSQL database and Redis queue
+- **N8N v2 Architecture** with decoupled Draft/Publish states and safe autosaving
+- **Isolated Task Runners** for secure and stable execution of Code nodes
 - **Tailscale Mesh Networking** for secure access to local services
 - **Worker Scaling** with Redis-based message queue
 - **Subnet Routing** for comprehensive local network access
 - **Health Checks** and dependency management
-- **Security Hardening** with encryption and access controls
+- **Security Hardening** with encryption and strict database isolation
 
 ## Architecture
 
-```
+In this v2-optimized deployment, code execution is completely isolated. The Main interface handles web traffic, the Worker acts as a task broker distributing queue jobs, and the Runner securely executes the actual node logic.
+```text
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   PostgreSQL    │    │      Redis      │    │    Tailscale    │
 │   (Database)    │    │  (Message Queue)│    │ (Network Mesh)  │
@@ -34,8 +36,13 @@ The setup is designed for **Coolify deployment** and optimized for **low-cost in
                                  │
                     ┌─────────────────┐    ┌─────────────────┐
                     │   N8N Main      │    │   N8N Worker    │
-                    │ (Web Interface) │    │  (Execution)    │
-                    └─────────────────┘    └─────────────────┘
+                    │ (Web Interface) │    │  (Task Broker)  │
+                    └─────────────────┘    └────────┬────────┘
+                                                    │
+                                           ┌────────┴────────┐
+                                           │   N8N Runner    │
+                                           │(Node Execution) │
+                                           └─────────────────┘
 ```
 
 ## Quick Start
@@ -56,15 +63,17 @@ The setup is designed for **Coolify deployment** and optimized for **low-cost in
    ```bash
    cp .env.template .env
    # Edit .env with your actual values
-   docker-compose up -d
+   docker compose up -d
    ```
 
 3. **Generate secrets (run individually to avoid bash history):**
-   ```bash
+   
+```bash
    openssl rand -base64 32  # For POSTGRES_PASSWORD
    openssl rand -base64 32  # For REDIS_PASSWORD
    openssl rand -base64 32  # For N8N_ENCRYPTION_KEY
    openssl rand -base64 64  # For N8N_JWT_SECRET
+   openssl rand -hex 32     # For N8N_RUNNERS_AUTH_TOKEN
    ```
 
 ### Environment Variables
@@ -72,7 +81,6 @@ The setup is designed for **Coolify deployment** and optimized for **low-cost in
 Set the following environment variables in **Coolify's Environment tab** or in your `.env` file for manual deployments:
 
 **Required Secrets:**
-
 ```bash
 # Required Secrets
 TS_AUTHKEY=<tailscale-reusable-auth-key>
@@ -80,7 +88,8 @@ POSTGRES_PASSWORD=<strong-database-password>
 REDIS_PASSWORD=<strong-redis-password>
 N8N_ENCRYPTION_KEY=<32-character-base64-key>
 N8N_JWT_SECRET=<64-character-base64-key>
-WEBHOOK_URL=https://n8n.yourdomain.com
+N8N_RUNNERS_AUTH_TOKEN=<32-character-hex-string>
+WEBHOOK_URL=[https://n8n.yourdomain.com](https://n8n.yourdomain.com)
 
 # Optional Configuration
 TZ=<timezone-identifier>  # e.g., America/New_York, Europe/London, UTC (default: Etc/GMT+6)
@@ -115,23 +124,8 @@ chown -R 1000:1000 /root/data/n8n
 
 **Manual Deployment:**
 ```bash
-docker-compose up -d
-```
-
-#### Example: Custom Timezone Deployment
-
-**In Coolify:**
-- Set `TZ=America/New_York` in the Environment tab
-- All services will automatically use the specified timezone
-
-**Manual Deployment:**
-```bash
-# Set timezone environment variable
-export TZ=America/New_York
-docker-compose up -d
-
-# Or for one-time deployment:
-TZ=Europe/London docker-compose up -d
+docker compose pull
+docker compose up -d
 ```
 
 ## Tailscale Configuration
@@ -158,10 +152,10 @@ After deployment:
 // N8N HTTP Request node examples
 
 // Direct Tailscale IP access
-URL: "http://100.64.1.100:3000"
+URL: "[http://100.64.1.100:3000](http://100.64.1.100:3000)"
 
 // Subnet routing access  
-URL: "http://192.168.1.50:8080"
+URL: "[http://192.168.1.50:8080](http://192.168.1.50:8080)"
 ```
 
 ### Supported Networks
@@ -172,42 +166,26 @@ URL: "http://192.168.1.50:8080"
 ## Local Network Setup and Integration
 
 ### Local Tailscale Client Installation
-
 To enable N8N automation of local processes, install Tailscale on target local machines:
 
-1. **Download Tailscale** for the target platform:
-   - Windows: [tailscale.com/download/windows](https://tailscale.com/download/windows)
-   - macOS: [tailscale.com/download/mac](https://tailscale.com/download/mac)  
-   - Linux: [tailscale.com/download/linux](https://tailscale.com/download/linux)
-   - Android/iOS: Available in respective app stores
-
-2. **Sign in** using the same Tailscale account as the N8N deployment
-
+1. **Download Tailscale** for the target platform (Windows, macOS, Linux).
+2. **Sign in** using the same Tailscale account as the N8N deployment.
 3. **Verify connectivity** between N8N server and local machines:
    ```bash
    # Find local machine's Tailscale IP
    tailscale ip -4
    
-   # Test from N8N server (or vice versa)
+   # Test from N8N server
    ping 100.x.x.x
    ```
 
 ### Local Process Automation Architecture
-
-**Recommended Pattern**: Use **webhook servers** as intermediary layers rather than direct process execution. This provides:
-
-- **Security isolation** - N8N can only trigger predefined actions
-- **Access control** - local services control what operations are available
-- **Error handling** - proper response codes and error messages
-- **Logging and monitoring** - track all automation requests
-- **Flexibility** - easy to modify local behavior without changing N8N workflows
-
-### Local Integration Examples
+**Recommended Pattern**: Use **webhook servers** as intermediary layers rather than direct process execution. This provides security isolation, access control, and flexibility.
 
 #### Basic Webhook Server Pattern
 ```javascript
 // Local HTTP server listening on Tailscale interface
-// N8N workflow sends: POST http://100.x.x.x:3000/api/action
+// N8N workflow sends: POST [http://100.](http://100.)x.x.x:3000/api/action
 
 {
   "action": "process_file",
@@ -220,69 +198,31 @@ To enable N8N automation of local processes, install Tailscale on target local m
 
 #### Common Use Cases
 - **GPU Processing**: Image generation, ML inference, video processing
-- **File Operations**: Local file manipulation, format conversion, archival
 - **Hardware Control**: IoT devices, cameras, sensors, actuators
-- **Development Tasks**: Code compilation, testing, deployment
 - **System Administration**: Backups, monitoring, maintenance scripts
-- **Media Processing**: Transcoding, editing, metadata extraction
-- **Data Analysis**: Local database queries, report generation
-- **Security Operations**: Local scanning, compliance checks
-
-#### Platform-Specific Integration Options
-
-**Windows**:
-- PowerShell HTTP servers
-- .NET Core web APIs
-- Task Scheduler integration
-- Windows Service wrappers
-
-**macOS/Linux**:
-- Python Flask/FastAPI servers
-- Node.js Express applications
-- Shell script HTTP wrappers
-- Systemd service integration
-
-**Mobile Devices**:
-- Tasker (Android) with HTTP Request plugin
-- Shortcuts (iOS) with webhook triggers
-- Specialized automation apps with HTTP APIs
 
 ### Security Considerations for Local Integration
-
-**Network Isolation**:
-- Bind local services only to Tailscale interface (`100.x.x.x:port`)
-- Use authentication tokens for webhook endpoints
-- Implement request validation and sanitization
-
-**Process Isolation**:
-- Run local services with minimal privileges
-- Use containerization when possible
-- Implement request rate limiting
-
-**Data Protection**:
-- Encrypt sensitive data in transit and at rest
-- Use HTTPS for local services when handling sensitive data
-- Log access attempts for monitoring
-
-
+- **Network Isolation**: Bind local services only to Tailscale interfaces (`100.x.x.x:port`).
+- **Process Isolation**: Run local services with minimal privileges.
+- **Data Protection**: Use HTTPS for local services when handling sensitive data.
 
 ## Resource Requirements
-
-
 
 | Service | Memory | Purpose |
 |---------|---------|---------|
 | PostgreSQL | ~50-100MB | Database storage |
 | Redis | ~10-50MB | Message queue |
-| N8N Main | ~150-300MB | Web interface |
-| N8N Worker | ~100-200MB | Workflow execution |
+| N8N Main | ~150-300MB | Web interface & API |
+| N8N Worker | ~100-200MB | Task routing and queue management |
+| N8N Runner | ~50-100MB | Isolated code execution |
 | Tailscale | ~5-20MB | Network mesh |
-| **Total** | **~315-670MB** | Full stack |
+| **Total** | **~365-770MB** | Full stack |
 
 Compatible with **2GB+ RAM** instances.
 
 ## Security Features
 
+- **Isolated Execution:** Code nodes run in a detached `n8n-runner` container, preventing memory leaks or crashes from affecting the main web service.
 - **Encrypted workflows** with `N8N_ENCRYPTION_KEY`
 - **JWT authentication** with configurable secrets
 - **File access restrictions** to designated directories
@@ -299,16 +239,15 @@ Compatible with **2GB+ RAM** instances.
 | - | Tailscale | Mesh network |
 
 ## Volume Mounts
-
 ```
 /root/data/n8n/
 ├── .n8n/              # N8N configuration and workflows
 ├── custom-nodes/      # Custom node installations  
 ├── shared-files/      # Workflow file storage
-├── backups/          # Backup destination
-├── postgres/         # Database files
-├── redis/           # Redis persistence
-└── tailscale/       # Tailscale state
+├── backups/           # Backup destination
+├── postgres/          # Database files
+├── redis/             # Redis persistence
+└── tailscale/         # Tailscale state
 ```
 
 ## Environment Variables Reference
@@ -319,42 +258,18 @@ Compatible with **2GB+ RAM** instances.
 - `REDIS_PASSWORD` - Redis password
 - `N8N_ENCRYPTION_KEY` - Workflow encryption (32 chars)
 - `N8N_JWT_SECRET` - Authentication secret (64 chars)
+- `N8N_RUNNERS_AUTH_TOKEN` - Secure token linking the worker and the runner
 - `WEBHOOK_URL` - External N8N URL for webhooks
+
+### Architecture Flags (Hardcoded in Compose)
+- `N8N_RUNNERS_MODE=external` - Forces n8n to look for the detached runner container
+- `N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0` - Allows the worker to accept internal connections from the runner
+- `OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true` - Ensures manual runs in the UI are pushed to the worker/runner stack
 
 ### Optional Customization
 - `TZ` - Timezone identifier (default: Etc/GMT+6). Examples: America/New_York, Europe/London, UTC, Asia/Tokyo
 - `EXECUTIONS_DATA_MAX_AGE` - Execution retention hours (default: 168)
 - `N8N_METRICS` - Enable metrics (default: true)
-
-### Timezone Configuration
-
-The `TZ` environment variable accepts standard timezone identifiers. Common examples:
-
-**Americas**:
-- `America/New_York` - Eastern Time (EST/EDT)
-- `America/Chicago` - Central Time (CST/CDT)
-- `America/Denver` - Mountain Time (MST/MDT)
-- `America/Los_Angeles` - Pacific Time (PST/PDT)
-- `America/Toronto` - Eastern Time (Canada)
-
-**Europe**:
-- `Europe/London` - Greenwich Mean Time (GMT/BST)
-- `Europe/Paris` - Central European Time (CET/CEST)
-- `Europe/Berlin` - Central European Time (CET/CEST)
-- `Europe/Moscow` - Moscow Time (MSK)
-
-**Asia**:
-- `Asia/Tokyo` - Japan Standard Time (JST)
-- `Asia/Shanghai` - China Standard Time (CST)
-- `Asia/Kolkata` - India Standard Time (IST)
-- `Asia/Dubai` - Gulf Standard Time (GST)
-
-**UTC Variations**:
-- `UTC` - Coordinated Universal Time
-- `Etc/GMT+6` - UTC-6 (Central Standard Time equivalent)
-- `Etc/GMT-5` - UTC+5 (Pakistan Standard Time equivalent)
-
-**Note**: Use `timedatectl list-timezones` on Linux systems to see all available timezone identifiers.
 
 ## Health Checks
 
@@ -369,10 +284,10 @@ All services include health checks with automatic restart:
 ### Service Won't Start
 ```bash
 # Check container logs
-docker-compose logs <service-name>
+docker compose logs <service-name>
 
 # Verify environment variables
-docker-compose config
+docker compose config
 
 # Check file permissions
 ls -la /root/data/n8n/
@@ -381,30 +296,27 @@ ls -la /root/data/n8n/
 ### Tailscale Connectivity Issues
 ```bash
 # Check Tailscale status
-docker exec <container> tailscale status
+docker compose exec tailscale tailscale status
 
 # Test local network access
-docker exec <container> ping 192.168.1.1
+docker compose exec n8n ping 192.168.1.1
 ```
-
-### N8N Access Issues
-- Verify `WEBHOOK_URL` matches external domain
-- Check reverse proxy configuration
-- Ensure port 5678 is accessible
 
 ## Scaling
 
-### Add More Workers
+### Add More Runners (Execution Capacity)
+In N8N v2, the primary bottleneck for heavy tasks (like processing large arrays in Code nodes) is the runner. To increase execution capacity, scale the runner service, not the worker:
 ```yaml
-n8n-worker-2:
-  <<: *n8n-worker  # Inherit configuration
-  container_name: n8n-worker-2
+  n8n-runner-2:
+    <<: *n8n-runner  # Inherit configuration
+    container_name: n8n-runner-2
 ```
 
 ### Performance Tuning
-- Increase worker count for heavy workloads
-- Adjust PostgreSQL memory settings
-- Monitor Redis memory usage
+- Increase runner count for code-heavy workloads.
+- Adjust PostgreSQL memory settings if database queries become the bottleneck.
+- Monitor Redis memory usage to ensure the BullMQ queue does not overflow.
+
 
 ## Backup Strategy
 
@@ -421,17 +333,10 @@ tar -czf backup-$(date +%Y%m%d).tar.gz /root/data/n8n/
 
 ## Related Documentation
 
-- [N8N Documentation](https://docs.n8n.io/)
+- [N8N v2 Release Notes](https://docs.n8n.io/release-notes/)
 - [Tailscale Documentation](https://tailscale.com/kb/)
 - [Docker Compose Reference](https://docs.docker.com/compose/)
 - [Coolify Docs](https://coolify.io/docs/get-started/introduction)
-
-## Project Files
-
-- `docker-compose.yml` - Main Docker Compose configuration
-- `.env.template` - Environment variables template (copy to `.env` and customize)
-- `README.md` - This documentation
-- `.gitignore` - Ensures secrets in `.env` are not committed
 
 ---
 

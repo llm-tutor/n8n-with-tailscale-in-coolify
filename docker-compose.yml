@@ -101,6 +101,9 @@ services:
       # File permissions and modern settings
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
       - N8N_RUNNERS_ENABLED=true
+      - N8N_RUNNERS_MODE=external
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
       - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true
     ports:
       - "5678:5678"
@@ -141,6 +144,9 @@ services:
       - NODE_FUNCTION_ALLOW_BUILTIN=*
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
       - N8N_RUNNERS_ENABLED=true
+      - N8N_RUNNERS_MODE=external
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
     volumes:
       - /root/data/n8n/.n8n:/home/node/.n8n
       - /root/data/n8n/shared-files:/files
@@ -154,6 +160,17 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+
+  n8n-runner:
+    image: n8nio/runners:1.123.31
+    restart: unless-stopped
+    environment:
+      - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
+      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5678
+    networks:
+      - n8n_network
+    depends_on:
+      - n8n-worker
 
 networks:
   n8n_network:
