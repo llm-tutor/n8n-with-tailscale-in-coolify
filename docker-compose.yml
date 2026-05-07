@@ -162,11 +162,18 @@ services:
     restart: unless-stopped
 
   n8n-runner:
-    image: n8nio/runners:2.18.5
+    build:
+      context: . 
+      dockerfile: Dockerfile
+    container_name: n8n-custom-runner
     restart: unless-stopped
     environment:
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
+      - N8N_RUNNERS_STDLIB_ALLOW=*
+      - N8N_RUNNERS_EXTERNAL_ALLOW=*
+    volumes:
+      - /root/data/n8n/shared-files:/files
     networks:
       - n8n_network
     depends_on:
