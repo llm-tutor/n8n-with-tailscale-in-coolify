@@ -24,7 +24,10 @@ USER root
 # Inject the standalone Rclone binary from the builder stage
 COPY --from=builder /rclone-binary /usr/local/bin/rclone
 
-# Install Python dependencies for AI workflows
+# Inject Custom Sandbox Security Policy
+COPY n8n-task-runners.json /etc/n8n-task-runners.json
+
+# Install Python dependencies
 COPY requirements.txt /opt/runners/task-runner-python/requirements.txt
 RUN cd /opt/runners/task-runner-python && uv pip install -r requirements.txt
 

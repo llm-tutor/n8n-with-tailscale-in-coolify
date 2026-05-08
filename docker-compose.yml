@@ -170,6 +170,7 @@ services:
     environment:
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
+      # This two could be removed (handled in runners.json). Left for reference.
       - N8N_RUNNERS_STDLIB_ALLOW=*
       - N8N_RUNNERS_EXTERNAL_ALLOW=*
       # Explicitly tell Rclone where the file is
