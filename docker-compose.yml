@@ -172,8 +172,12 @@ services:
       - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
       - N8N_RUNNERS_STDLIB_ALLOW=*
       - N8N_RUNNERS_EXTERNAL_ALLOW=*
+      # Explicitly tell Rclone where the file is
+      - RCLONE_CONFIG=/home/runner/.config/rclone/rclone.conf
     volumes:
       - /root/data/n8n/shared-files:/files
+      # Mount the whole directory, not just the file
+      - /root/data/n8n/config:/home/runner/.config/rclone
     networks:
       - n8n_network
     depends_on:
