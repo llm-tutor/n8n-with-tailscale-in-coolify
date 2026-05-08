@@ -1,11 +1,28 @@
+# --------------------------------------------------------
+# STAGE 1: Downloader
+# Use a temporary, lightweight Alpine container to fetch Rclone
+# --------------------------------------------------------
+FROM alpine:latest AS builder
+
+# Install standard web tools to fetch the archive
+RUN apk add --no-cache curl unzip
+
+# Download the latest Linux AMD64 binary, unzip it, and isolate the executable
+RUN curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip && \
+    unzip rclone-current-linux-amd64.zip && \
+    mv rclone-*-linux-amd64/rclone /rclone-binary && \
+    chmod +x /rclone-binary
+
+# --------------------------------------------------------
+# STAGE 2: Final Runner Image
+# Build the actual n8n task runner
+# --------------------------------------------------------
 FROM n8nio/runners:2.18.5
 
 USER root
 
-# Install Rclone dependencies and binary
-RUN apt-get update && \
-    apt-get install -y rclone unzip && \
-    rm -rf /var/lib/apt/lists/*
+# Inject the standalone Rclone binary from the builder stage
+COPY --from=builder /rclone-binary /usr/local/bin/rclone
 
 # Install Python dependencies for AI workflows
 COPY requirements.txt /opt/runners/task-runner-python/requirements.txt
