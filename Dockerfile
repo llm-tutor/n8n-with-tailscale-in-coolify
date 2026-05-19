@@ -35,7 +35,9 @@ RUN cd /opt/runners/task-runner-python && uv pip install -r requirements.txt
 # Patch n8n task_executor.py to prevent wiping out allowed environment variables
 # RUN sed -i 's/os.environ.clear()/# os.environ.clear()/g' /opt/runners/task-runner-python/src/task_executor.py
 # DEBUG: Find where is the python file
-RUN find /opt/runners -name "*.py" && exit 1
+# RUN find /opt/runners -name "*.py" && exit 1
+RUN find /opt/runners -name "task_executor.py" -exec sed -i 's/os.environ.clear()/# os.environ.clear()/g' {} +
+
 
 # Revert back to the non-root runner user for security
 USER runner
