@@ -32,5 +32,8 @@ RUN chmod 644 /etc/n8n-task-runners.json
 COPY requirements.txt /opt/runners/task-runner-python/requirements.txt
 RUN cd /opt/runners/task-runner-python && uv pip install -r requirements.txt
 
+# Patch n8n task_executor.py to prevent wiping out allowed environment variables
+RUN sed -i 's/os.environ.clear()/# os.environ.clear()/g' /opt/runners/task-runner-python/src/task_executor.py
+
 # Revert back to the non-root runner user for security
 USER runner
