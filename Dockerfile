@@ -25,7 +25,8 @@ USER root
 COPY --from=builder /rclone-binary /usr/local/bin/rclone
 
 # Inject Custom Sandbox Security Policy
-COPY n8n-task-runners.json /etc/n8n-task-runners.json
+COPY --chown=runner:runner n8n-task-runners.json /etc/n8n-task-runners.json
+RUN chmod 644 /etc/n8n-task-runners.json
 
 # Install Python dependencies
 COPY requirements.txt /opt/runners/task-runner-python/requirements.txt

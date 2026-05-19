@@ -105,6 +105,7 @@ services:
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
       - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
       - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true
+      - N8N_BLOCK_RUNNER_ENV_ACCESS=false
     ports:
       - "5678:5678"
     volumes:
@@ -147,6 +148,7 @@ services:
       - N8N_RUNNERS_MODE=external
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
       - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
+      - N8N_BLOCK_RUNNER_ENV_ACCESS=false
     volumes:
       - /root/data/n8n/.n8n:/home/node/.n8n
       - /root/data/n8n/shared-files:/files
@@ -180,6 +182,8 @@ services:
       - GOOGLE_API_KEY_PRO=${GOOGLE_API_KEY_PRO}
       - OPENCODE=${OPENCODE}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EXECUTION_DIAKEFO_STUDIO_FOLDER=${EXECUTION_DIAKEFO_STUDIO_FOLDER:-/files/diakefo_studio/}
+      - N8N_BLOCK_RUNNER_ENV_ACCESS=false
     volumes:
       - /root/data/n8n/shared-files:/files
       # Mount the whole directory, not just the file
