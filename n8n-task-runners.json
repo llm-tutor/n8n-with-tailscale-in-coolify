@@ -11,10 +11,18 @@
       ],
       "health-check-server-port": "5681",
       "allowed-env": [
-        "PATH", "GENERIC_TIMEZONE", "NODE_OPTIONS", "NODE_PATH", 
-        "N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT", "N8N_RUNNERS_TASK_TIMEOUT", 
-        "N8N_RUNNERS_MAX_CONCURRENCY", "N8N_SENTRY_DSN", "N8N_VERSION", 
-        "ENVIRONMENT", "DEPLOYMENT_NAME", "HOME"
+        "PATH",
+        "GENERIC_TIMEZONE",
+        "NODE_OPTIONS",
+        "NODE_PATH",
+        "N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT",
+        "N8N_RUNNERS_TASK_TIMEOUT",
+        "N8N_RUNNERS_MAX_CONCURRENCY",
+        "N8N_SENTRY_DSN",
+        "N8N_VERSION",
+        "ENVIRONMENT",
+        "DEPLOYMENT_NAME",
+        "HOME"
       ],
       "env-overrides": {
         "NODE_FUNCTION_ALLOW_BUILTIN": "*",
@@ -26,13 +34,30 @@
       "runner-type": "python",
       "workdir": "/home/runner",
       "command": "/opt/runners/task-runner-python/.venv/bin/python",
-      "args": ["-I", "-B", "-X", "disable_remote_debug", "-m", "src.main"],
+      "args": [
+        "-I",
+        "-B",
+        "-X",
+        "disable_remote_debug",
+        "-m",
+        "src.main"
+      ],
       "health-check-server-port": "5682",
       "allowed-env": [
-        "PATH", "N8N_RUNNERS_LAUNCHER_LOG_LEVEL", "N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT", 
-        "N8N_RUNNERS_TASK_TIMEOUT", "N8N_RUNNERS_MAX_CONCURRENCY", "N8N_SENTRY_DSN", 
-        "N8N_VERSION", "ENVIRONMENT", "DEPLOYMENT_NAME", "GOOGLE_API_KEY_FREE",
-        "GOOGLE_API_KEY_PRO", "OPENCODE", "OPENAI_API_KEY", "EXECUTION_DIAKEFO_STUDIO_FOLDER"
+        "PATH",
+        "N8N_RUNNERS_LAUNCHER_LOG_LEVEL",
+        "N8N_RUNNERS_AUTO_SHUTDOWN_TIMEOUT",
+        "N8N_RUNNERS_TASK_TIMEOUT",
+        "N8N_RUNNERS_MAX_CONCURRENCY",
+        "N8N_SENTRY_DSN",
+        "N8N_VERSION",
+        "ENVIRONMENT",
+        "DEPLOYMENT_NAME",
+        "GOOGLE_API_KEY_FREE",
+        "GOOGLE_API_KEY_PRO",
+        "OPENCODE_API_KEY",
+        "OPENAI_API_KEY",
+        "EXECUTION_DIAKEFO_STUDIO_FOLDER"
       ],
       "env-overrides": {
         "PYTHONPATH": "/opt/runners/task-runner-python",
