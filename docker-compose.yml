@@ -106,6 +106,9 @@ services:
       - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
       - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true
       - N8N_BLOCK_RUNNER_ENV_ACCESS=false
+      # Timeouts
+      - N8N_RUNNERS_TASK_TIMEOUT=${N8N_RUNNERS_TASK_TIMEOUT:-300}
+      - N8N_DEFAULT_CODE_NODE_TIMEOUT=${N8N_DEFAULT_CODE_NODE_TIMEOUT:-300}
     ports:
       - "5678:5678"
     volumes:
@@ -149,6 +152,9 @@ services:
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
       - N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0
       - N8N_BLOCK_RUNNER_ENV_ACCESS=false
+      # Timeouts
+      - N8N_RUNNERS_TASK_TIMEOUT=${N8N_RUNNERS_TASK_TIMEOUT:-300}
+      - N8N_DEFAULT_CODE_NODE_TIMEOUT=${N8N_DEFAULT_CODE_NODE_TIMEOUT:-300}
     volumes:
       - /root/data/n8n/.n8n:/home/node/.n8n
       - /root/data/n8n/shared-files:/files
@@ -184,6 +190,9 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - EXECUTION_DIAKEFO_STUDIO_FOLDER=${EXECUTION_DIAKEFO_STUDIO_FOLDER:-/files/diakefo_studio/}
       - N8N_BLOCK_RUNNER_ENV_ACCESS=false
+      # Timeouts
+      - N8N_RUNNERS_TASK_TIMEOUT=${N8N_RUNNERS_TASK_TIMEOUT:-300}
+      - N8N_DEFAULT_CODE_NODE_TIMEOUT=${N8N_DEFAULT_CODE_NODE_TIMEOUT:-300}
     volumes:
       - /root/data/n8n/shared-files:/files
       # Mount the whole directory, not just the file
