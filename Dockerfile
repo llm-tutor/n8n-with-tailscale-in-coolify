@@ -17,7 +17,7 @@ RUN curl -O https://downloads.rclone.org/rclone-current-linux-amd64.zip && \
 # STAGE 2: Final Runner Image
 # Build the actual n8n task runner
 # --------------------------------------------------------
-FROM n8nio/runners:2.18.5
+FROM n8nio/runners:2.26.8
 
 USER root
 
