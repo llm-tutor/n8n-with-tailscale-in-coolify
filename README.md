@@ -16,6 +16,9 @@ The setup is designed for **Coolify deployment** and optimized for **low-cost in
 ## Features
 
 - **N8N v2 Architecture** with decoupled Draft/Publish states and safe autosaving
+- **Custom Runner Image** with multi-stage Dockerfile — includes Rclone, Python AI/ML libraries, and patched task executor
+- **Dual Runtime Support** — JavaScript and Python task runners configured via `n8n-task-runners.json`
+- **AI/ML in Code Nodes** — pre-installed `openai`, `google-genai`, `langchain`, and `langgraph` in the Python runner
 - **Isolated Task Runners** for secure and stable execution of Code nodes
 - **Tailscale Mesh Networking** for secure access to local services
 - **Worker Scaling** with Redis-based message queue
@@ -25,7 +28,7 @@ The setup is designed for **Coolify deployment** and optimized for **low-cost in
 
 ## Architecture
 
-In this v2-optimized deployment, code execution is completely isolated. The Main interface handles web traffic, the Worker acts as a task broker distributing queue jobs, and the Runner securely executes the actual node logic.
+In this v2-optimized deployment, code execution is completely isolated. The Main interface handles web traffic, the Worker acts as a task broker distributing queue jobs, and the **custom-built Runner** (see `Dockerfile`) securely executes the actual node logic with both JavaScript and Python runtimes. The runner's behavior is governed by `n8n-task-runners.json`, which controls allowed environment variables and runtime security flags.
 ```text
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   PostgreSQL    │    │      Redis      │    │    Tailscale    │
@@ -40,10 +43,75 @@ In this v2-optimized deployment, code execution is completely isolated. The Main
                     └─────────────────┘    └────────┬────────┘
                                                     │
                                            ┌────────┴────────┐
-                                           │   N8N Runner    │
-                                           │(Node Execution) │
+                                           │ Custom Runner   │
+                                           │ (JS + Python)   │
+                                           │ + Rclone + AI   │
                                            └─────────────────┘
 ```
+
+## Custom Runner Dockerfile
+
+The `n8n-runner` service uses a **custom multi-stage Dockerfile** that extends the official `n8nio/runners` image with additional tooling:
+
+| Stage | Purpose |
+|-------|---------|
+| **Builder** | Downloads and extracts the latest **Rclone** binary (cloud storage integration) |
+| **Final** | Injects Rclone, copies `n8n-task-runners.json`, installs Python AI dependencies, and patches the task executor |
+
+### What the Dockerfile does
+
+1. **Rclone injection** — The standalone Rclone binary is copied into `/usr/local/bin/rclone`, enabling Code nodes to interact with cloud storage providers (S3, GCS, Dropbox, Google Drive, etc.) directly from the runner.
+2. **Runner configuration** — `n8n-task-runners.json` is copied to `/etc/n8n-task-runners.json` (read by the n8n runner launcher to configure JS and Python runtimes).
+3. **Python dependencies** — Packages from `requirements.txt` are installed into the Python runner's virtual environment using `uv pip`.
+4. **Environment patch** — The runner's `task_executor.py` is patched so that allowed environment variables (API keys, etc.) are **not wiped** before task execution — without this patch, `n8n-task-runners.json`'s `allowed-env` list has no effect.
+
+## Task Runner Configuration (`n8n-task-runners.json`)
+
+This file defines the runtime behavior for both JavaScript and Python task runners. Each runner entry specifies:
+
+| Field | Description |
+|-------|-------------|
+| `runner-type` | `"javascript"` or `"python"` |
+| `command` | Full path to the runtime executable |
+| `args` | Security flags and entry-point script |
+| `health-check-server-port` | Internal port for runner health checks (`5681` for JS, `5682` for Python) |
+| `allowed-env` | Whitelist of environment variables passed through to the runner sandbox |
+| `env-overrides` | Hardcoded environment values injected into the sandbox |
+
+### JavaScript Runner
+
+- Uses Node.js with security flags: `--disallow-code-generation-from-strings` and `--disable-proto=delete`
+- `env-overrides` set `NODE_FUNCTION_ALLOW_BUILTIN=*` and `NODE_FUNCTION_ALLOW_EXTERNAL=*`, giving Code nodes full access to Node.js built-ins and npm packages
+
+### Python Runner
+
+- Uses Python with isolation flags: `-I` (isolated mode), `-B` (no .pyc), `-X disable_remote_debug`
+- `env-overrides` set `N8N_RUNNERS_STDLIB_ALLOW=*` and `N8N_RUNNERS_EXTERNAL_ALLOW=*`, giving Code nodes full access to the Python standard library and installed packages
+- **AI/ML enabled** — the `allowed-env` list includes API keys for Google AI, OpenAI, and OpenCode, plus a custom `EXECUTION_DIAKEFO_STUDIO_FOLDER` path variable
+
+### AI/ML in Python Code Nodes
+
+The Python runner comes pre-loaded with AI/ML libraries (see `requirements.txt`):
+
+| Package | Purpose |
+|---------|---------|
+| `openai` | OpenAI API client (GPT-4, embeddings, etc.) |
+| `google-genai` | Google Gemini API client |
+| `langchain` | LLM application framework |
+| `langgraph` | Stateful multi-actor LLM applications |
+| `requests` | HTTP client for custom API calls |
+
+To use these in Code nodes, set the corresponding environment variables in Coolify or your `.env`:
+
+```bash
+GOOGLE_API_KEY_FREE=<your-google-ai-key>
+GOOGLE_API_KEY_PRO=<your-google-ai-pro-key>
+OPENAI_API_KEY=<your-openai-key>
+OPENCODE_GO_API_KEY=<your-opencode-key>
+EXECUTION_DIAKEFO_STUDIO_FOLDER=/files/diakefo_studio/
+```
+
+> **Note**: These variables will only reach the Python runner if they are listed in `n8n-task-runners.json` → `allowed-env`. The JavaScript runner does **not** receive AI keys by default (its `allowed-env` list is limited to generic n8n variables).
 
 ## Quick Start
 
@@ -98,8 +166,9 @@ TZ=<timezone-identifier>  # e.g., America/New_York, Europe/London, UTC (default:
 **Coolify Setup:**
 1. Navigate to your application's **Environment** tab in Coolify
 2. Add each variable above with your generated values
-3. Use the secret generation commands above to create secure passwords
-4. Deploy your application
+3. To enable AI features in Python Code nodes, also add the optional AI/ML API keys (see [AI/ML in Python Code Nodes](#aiml-in-python-code-nodes))
+4. Use the secret generation commands above to create secure passwords
+5. Deploy your application
 
 **Manual Deployment:**
 Copy `.env.template` to `.env` and fill in your values, then run `docker-compose up -d`.
@@ -247,8 +316,21 @@ Compatible with **2GB+ RAM** instances.
 ├── backups/           # Backup destination
 ├── postgres/          # Database files
 ├── redis/             # Redis persistence
-└── tailscale/         # Tailscale state
+├── tailscale/         # Tailscale state
+└── config/            # Rclone configuration (mounted into runner)
 ```
+
+## Repository File Overview
+
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | Full stack service definitions (N8N, Worker, Runner, Postgres, Redis, Tailscale) |
+| `Dockerfile` | Custom multi-stage build for the N8N Runner (adds Rclone, Python AI deps, patches executor) |
+| `n8n-task-runners.json` | Runner runtime configuration — JS/Python commands, security flags, allowed env vars |
+| `requirements.txt` | Python packages installed into the runner's virtual environment |
+| `README.md` | This documentation |
+| `LICENSE` | License file |
+| `.env.template` | Template for environment variables (create your own `.env` file) |
 
 ## Environment Variables Reference
 
@@ -265,6 +347,15 @@ Compatible with **2GB+ RAM** instances.
 - `N8N_RUNNERS_MODE=external` - Forces n8n to look for the detached runner container
 - `N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0` - Allows the worker to accept internal connections from the runner
 - `OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true` - Ensures manual runs in the UI are pushed to the worker/runner stack
+
+### AI/ML API Keys (optional)
+- `GOOGLE_API_KEY_FREE` - Google Gemini API key (free tier). Used by Python Code nodes via `google-genai`.
+- `GOOGLE_API_KEY_PRO` - Google Gemini API key (pro tier). Used alongside the free key for higher rate limits.
+- `OPENAI_API_KEY` - OpenAI API key (GPT-4, embeddings). Used by Python Code nodes via `openai` / `langchain`.
+- `OPENCODE_GO_API_KEY` - OpenCode API key for code generation tasks.
+- `EXECUTION_DIAKEFO_STUDIO_FOLDER` - Working directory for AI-generated files (default: `/files/diakefo_studio/`).
+
+> **Important**: These variables must be listed in `n8n-task-runners.json` → `allowed-env` to be accessible inside Python Code nodes. They are already configured by default in this repository.
 
 ### Optional Customization
 - `TZ` - Timezone identifier (default: Etc/GMT+6). Examples: America/New_York, Europe/London, UTC, Asia/Tokyo
