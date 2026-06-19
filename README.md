@@ -161,6 +161,7 @@ WEBHOOK_URL=[https://n8n.yourdomain.com](https://n8n.yourdomain.com)
 
 # Optional Configuration
 TZ=<timezone-identifier>  # e.g., America/New_York, Europe/London, UTC (default: Etc/GMT+6)
+N8N_DATA_TABLES_MAX_SIZE_BYTES=524288000  # 500 MB max total size for Data Tables (optional, default shown)
 ```
 
 **Coolify Setup:**
@@ -347,6 +348,7 @@ Compatible with **2GB+ RAM** instances.
 - `N8N_RUNNERS_MODE=external` - Forces n8n to look for the detached runner container
 - `N8N_RUNNERS_BROKER_LISTEN_ADDRESS=0.0.0.0` - Allows the worker to accept internal connections from the runner
 - `OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true` - Ensures manual runs in the UI are pushed to the worker/runner stack
+- `N8N_DATA_TABLES_MAX_SIZE_BYTES` - Defined on **both** `n8n` (main) and `n8n-worker` services. In queue mode, workflows dispatched to the worker also write to Data Tables — without it on the worker, those executions would fail with a size-limit error. Default: `524288000` (500 MB).
 
 ### AI/ML API Keys (optional)
 - `GOOGLE_API_KEY_FREE` - Google Gemini API key (free tier). Used by Python Code nodes via `google-genai`.
@@ -361,6 +363,7 @@ Compatible with **2GB+ RAM** instances.
 - `TZ` - Timezone identifier (default: Etc/GMT+6). Examples: America/New_York, Europe/London, UTC, Asia/Tokyo
 - `EXECUTIONS_DATA_MAX_AGE` - Execution retention hours (default: 168)
 - `N8N_METRICS` - Enable metrics (default: true)
+- `N8N_DATA_TABLES_MAX_SIZE_BYTES` - Maximum total storage size for Data Tables in bytes (default: `524288000` / 500 MB). Set per-environment; applies to both the main N8N and worker services.
 
 ## Health Checks
 

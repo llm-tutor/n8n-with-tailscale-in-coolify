@@ -90,6 +90,7 @@ services:
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=${EXECUTIONS_DATA_MAX_AGE:-168}
       - N8N_METRICS=${N8N_METRICS:-true}
+      - N8N_DATA_TABLES_MAX_SIZE_BYTES=${N8N_DATA_TABLES_MAX_SIZE_BYTES:-524288000}
       # Custom nodes
       - NODE_FUNCTION_ALLOW_BUILTIN=*
       - NODE_FUNCTION_ALLOW_EXTERNAL=*
@@ -155,6 +156,8 @@ services:
       # Timeouts
       - N8N_RUNNERS_TASK_TIMEOUT=${N8N_RUNNERS_TASK_TIMEOUT:-300}
       - N8N_DEFAULT_CODE_NODE_TIMEOUT=${N8N_DEFAULT_CODE_NODE_TIMEOUT:-300}
+      # Data Tables limits
+      - N8N_DATA_TABLES_MAX_SIZE_BYTES=${N8N_DATA_TABLES_MAX_SIZE_BYTES:-524288000}
     volumes:
       - /root/data/n8n/.n8n:/home/node/.n8n
       - /root/data/n8n/shared-files:/files
