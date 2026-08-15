@@ -30,3 +30,6 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Repomix files
+repomix/
