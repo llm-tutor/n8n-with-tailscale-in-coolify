@@ -1,7 +1,29 @@
 version: '3.8'
 
 services:
-  # Tailscale service with subnet routing
+  # Tailscale sidecar.
+  #
+  # Two things here are load-bearing and easy to get wrong:
+  #
+  #   * TS_USERSPACE=false — kernel networking. In the image's default userspace
+  #     mode this namespace has NO tailscale0 interface, and only *inbound*
+  #     connections work (the userspace stack proxies them to localhost, which is
+  #     why a serving container like searxng is fine). Anything that shares this
+  #     namespace and needs to make an OUTBOUND connection to the tailnet — the
+  #     worker, the runner — gets nothing in userspace mode. Verified on the host
+  #     2026-09-20: the userspace sidecar had no tailscale0 and could not reach
+  #     100.82.44.116:9119; the kernel-mode sidecar (this flag) had tailscale0 and
+  #     could.
+  #   * /dev/net/tun must be present for kernel mode. The image can create the
+  #     node itself when it holds NET_ADMIN, but mounting it makes the requirement
+  #     explicit rather than dependent on that fallback.
+  #
+  # Tags are applied at enrolment. --advertise-tags is durability for a future
+  # re-enrolment; the tag on the existing node is applied from the admin console,
+  # which needs no re-authentication and does not change the node's address.
+  # Routes are deliberately NOT advertised: this sidecar used to advertise the
+  # VPS's private networks (10/8, 172.16/12, 192.168/16 — including the compose
+  # networks holding Postgres and Redis) into the whole tailnet.
   tailscale:
     image: tailscale/tailscale:latest
     pull_policy: always
@@ -9,10 +31,12 @@ services:
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY}
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_EXTRA_ARGS=--advertise-routes=192.168.0.0/16,10.0.0.0/8,172.16.0.0/12 --accept-routes=true
+      - TS_USERSPACE=false
+      - TS_EXTRA_ARGS=--advertise-tags=tag:server
       - TS_AUTH_ONCE=true
     volumes:
       - /root/data/n8n/tailscale:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
     cap_add:
       - net_admin
       - sys_module
@@ -133,6 +157,12 @@ services:
     image: n8nio/n8n:2.26.8
     user: "1000:1000"
     command: worker
+    # Shares the sidecar's network namespace — this is what puts the worker on the
+    # tailnet, which is what lets HTTP Request nodes reach a tailnet address.
+    # A container using another's namespace cannot publish ports; this one has
+    # none, so nothing is lost. It keeps resolving postgres/redis through the
+    # sidecar's own bridge address on n8n_network (verified on the host).
+    network_mode: "service:tailscale"
     environment:
       # Timezone (configurable via TZ environment variable)
       - TZ=${TZ:-Etc/GMT+6}
@@ -162,8 +192,6 @@ services:
     volumes:
       - /root/data/n8n/.n8n:/home/node/.n8n
       - /root/data/n8n/shared-files:/files
-    networks:
-      - n8n_network
     depends_on:
       tailscale:
         condition: service_healthy
@@ -181,7 +209,11 @@ services:
     restart: unless-stopped
     environment:
       - N8N_RUNNERS_AUTH_TOKEN=${N8N_RUNNERS_AUTH_TOKEN}
-      - N8N_RUNNERS_TASK_BROKER_URI=http://n8n-worker:5679
+      # 127.0.0.1, not n8n-worker: the runner and the worker share the sidecar's
+      # namespace, so they are the same host — and a service that shares another's
+      # namespace is no longer attached to n8n_network, so its own name does not
+      # resolve there.
+      - N8N_RUNNERS_TASK_BROKER_URI=http://127.0.0.1:5679
       # This two could be removed (handled in runners.json). Left for reference.
       - N8N_RUNNERS_STDLIB_ALLOW=*
       - N8N_RUNNERS_EXTERNAL_ALLOW=*
@@ -201,8 +233,9 @@ services:
       - /root/data/n8n/shared-files:/files
       # Mount the whole directory, not just the file
       - /root/data/n8n/config:/home/runner/.config/rclone
-    networks:
-      - n8n_network
+    # Shares the sidecar's namespace, like the worker: Code nodes run here, so a
+    # workflow that calls the tailnet from a Code node needs it too.
+    network_mode: "service:tailscale"
     depends_on:
       - n8n-worker
 
