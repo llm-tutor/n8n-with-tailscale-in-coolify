@@ -202,36 +202,54 @@ docker compose up -d
 
 ### 1. Generate Auth Key
 - Navigate to [Tailscale Admin Console](https://login.tailscale.com/admin/settings/keys)
-- Create **reusable key** with **90-day expiration**
-- Set description: `n8n-production`
+- Create a **reusable key** with **90-day expiration**, description `n8n-production`
+- Apply **`tag:server`** — either on the key, or to the device from the admin console after
+  enrolment (no re-authentication, and the address does not change)
 
-### 2. Enable Subnet Routing
-After deployment:
-1. Go to [Tailscale Admin Panel](https://login.tailscale.com/admin/machines)
-2. Find the deployed machine
-3. Click **Edit route settings**
-4. **Approve** all advertised routes:
-   - `192.168.0.0/16`
-   - `10.0.0.0/8`
-   - `172.16.0.0/12`
+**A tag makes this node a service identity, not a user's device.** It loses the default member
+access its owner's identity would otherwise grant, so **every path to and from it has to be
+granted explicitly in the tailnet policy file.** Do not apply the tag before those grants exist,
+or the node comes up healthy and reachable by nobody.
+
+### 2. Networking mode: kernel, not userspace
+The sidecar sets `TS_USERSPACE=false` and mounts `/dev/net/tun`. **This is required, not a
+preference.** The image defaults to userspace networking, where the namespace has **no
+`tailscale0` interface** and only *inbound* connections work (the userspace stack proxies them to
+localhost). `n8n-worker` and `n8n-runner` share this namespace and need to make **outbound**
+tailnet connections — they get nothing in userspace mode.
+
+### 3. No route advertisement — on purpose
+This stack deliberately does **not** advertise subnet routes. Advertising `10.0.0.0/8`,
+`172.16.0.0/12` and `192.168.0.0/16` from a VPS pushes its private space — including the compose
+networks holding Postgres and Redis — into the entire tailnet. Devices that need to reach each
+other are tailnet members; routes are the wrong mechanism here.
+
+**If you ever re-add `--advertise-routes`, know that `TS_EXTRA_ARGS` applies at *enrolment*:**
+on an already-enrolled node with a persistent state dir, adding it to the compose changes nothing
+until you also run `tailscale set --advertise-routes=...` inside the container. The reverse is
+equally true — removing the flag from this file does **not** remove a live advertisement, and
+clearing the advertisement does **not** clear the admin approval. Both have to be dealt with.
 
 ## Network Access Patterns
 
-### Local Services via Tailscale
+### Reaching a tailnet address from a workflow
+HTTP Request nodes execute on the **worker**; Code nodes execute on the **runner**. Both share
+the sidecar's network namespace, so both can reach the tailnet.
+
 ```javascript
-// N8N HTTP Request node examples
-
-// Direct Tailscale IP access
-URL: "[http://100.64.1.100:3000](http://100.64.1.100:3000)"
-
-// Subnet routing access  
-URL: "[http://192.168.1.50:8080](http://192.168.1.50:8080)"
+// N8N HTTP Request node
+URL: "http://100.82.44.116:9119/..."     // Hermes on asus-on
 ```
 
+**Use the `100.x` address, never a MagicDNS name.** These containers keep Docker's resolver
+(`127.0.0.11`) — MagicDNS is not wired into them, so `asus-on` fails to resolve with `EAI_AGAIN`.
+That reads like a network fault and is not one.
+
 ### Supported Networks
-- **Local networks**: 192.168.x.x, 10.x.x.x, 172.16-31.x.x
-- **Tailscale mesh**: 100.x.x.x addresses
-- **Container network**: Internal service communication
+- **Tailnet**: `100.x.x.x` addresses, subject to the tailnet policy file
+- **Container network**: internal service communication (`postgres`, `redis`, `tailscale`)
+- **Private ranges** (`192.168.x.x`, `10.x.x.x`, `172.16-31.x.x`): **not reachable** — this stack
+  advertises no routes and the tailnet policy grants none
 
 ## Local Network Setup and Integration
 
@@ -388,13 +406,29 @@ ls -la /root/data/n8n/
 ```
 
 ### Tailscale Connectivity Issues
-```bash
-# Check Tailscale status
-docker compose exec tailscale tailscale status
 
-# Test local network access
-docker compose exec n8n ping 192.168.1.1
+**Start by checking whether the namespace has a `tailscale0` interface** — that single fact
+separates the two failure modes below, and neither one produces an error message that names it.
+
+```bash
+# Is this namespace in kernel mode? (no tailscale0 => userspace mode, outbound will not work)
+docker compose exec tailscale ip link show tailscale0
+
+# What is the node's identity, tag and address?
+docker compose exec tailscale tailscale status --json | head -20
+
+# Reachability from the service that actually needs it (the worker, not the sidecar)
+docker compose exec n8n-worker node -e "require('net').connect({host:'100.82.44.116',port:9119,timeout:5000}).on('connect',()=>console.log('OPEN')).on('timeout',()=>console.log('TIMEOUT'))"
 ```
+
+- **`tailscale0` missing** → the container is in userspace mode. Set `TS_USERSPACE=false` and
+  mount `/dev/net/tun`. A `tailscale ping` from the *sidecar* will still succeed in this mode, so
+  it is not a valid test of whether a *shared* service can reach anything.
+- **`EAI_AGAIN` on a tailnet hostname** → expected: MagicDNS is not wired into these containers.
+  Use the `100.x` address.
+- **The sidecar works but the worker does not** → check `network_mode: "service:tailscale"` is on
+  the worker and runner, and that the runner's broker URI is `http://127.0.0.1:5679` (they share a
+  namespace, and a service that shares another's namespace loses its own name on the bridge).
 
 ## Scaling
 
