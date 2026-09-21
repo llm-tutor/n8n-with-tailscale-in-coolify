@@ -236,10 +236,40 @@ clearing the advertisement does **not** clear the admin approval. Both have to b
 HTTP Request nodes execute on the **worker**; Code nodes execute on the **runner**. Both share
 the sidecar's network namespace, so both can reach the tailnet.
 
-```javascript
-// N8N HTTP Request node
-URL: "http://100.82.44.116:9119/..."     // Hermes on asus-on
-```
+**Hermes on `asus-on` exposes two surfaces to a workflow, and they are not interchangeable:**
+
+| URL | What it is | Use it when |
+|---|---|---|
+| `http://100.82.44.116:9900/` | **A2A** — JSON-RPC 2.0. The reply returns in the same HTTP response. | the workflow needs an **answer** from the agent |
+| `http://100.82.44.116:8644/webhooks/<route>` | **Webhooks** — HMAC-signed POST, `202` ACK. | the command needs **only an acknowledgement** (the agent's answer goes to its own delivery target) |
+
+`http://100.82.44.116:9119/` is the **Hermes web dashboard** (`hermes serve`). It is a **human
+surface, not an API** — a workflow should not drive it. It was the only granted port when this
+section was first written, which is why it appears in older notes.
+
+Both ports are granted by the tailnet policy (`n8n` → `asus` on `9119`, `9900`, `8644`); everything
+else on that host is denied. See `personal-infra/global_docs/manuals/tailnet-policy.md`.
+
+### Credentials for the Hermes crossing
+
+**Both secrets are n8n *credentials*, not environment variables.** They are added in the n8n UI
+(*Credentials → Add credential*) and referenced by the workflow; they do **not** belong in this
+repository, in the Coolify environment, or in `docker-compose.yml`/`.env.template`. Putting one in
+the container environment would expose it to everything in the namespace and make a secret look like
+deployment configuration, which is what the credential store exists to prevent.
+
+| Credential | n8n type | Holds |
+|---|---|---|
+| Hermes A2A | **Header Auth** — header `Authorization`, value `Bearer <token>` | the A2A peer token. Lives on `asus-on` at `~/.hermes/.env`, key `A2A_PEER_TOKENS`, shape `n8n:<token>` — the part to paste is what follows `n8n:`. 43 chars; verify the paste by fingerprint `sha256[:12] = 3fd77fba9234` |
+| Hermes webhook | *to be settled — see below* | the per-route HMAC secret, from `asus-on:~/.hermes/webhook_subscriptions.json` |
+
+> **TODO — complete this section when the crossing is first exercised.** The A2A half is settled
+> (Header Auth covers it exactly). The webhook half is **not**: its signature is
+> `hex(HMAC-SHA256(secret, "<unix-timestamp>.<body>"))`, so the value has to be available to the step
+> that *computes* it, not just to the request headers — and the right n8n mechanism for that (a Crypto
+> node fed from a credential, versus another route) is to be decided when the workflow is built and
+> tested, rather than guessed here. **The requirement is fixed either way: the value must not live in
+> the workflow JSON or in the container environment.** Record the mechanism here once it is known.
 
 **Use the `100.x` address, never a MagicDNS name.** These containers keep Docker's resolver
 (`127.0.0.11`) — MagicDNS is not wired into them, so `asus-on` fails to resolve with `EAI_AGAIN`.
